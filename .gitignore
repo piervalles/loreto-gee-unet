@@ -1,0 +1,45 @@
+# .gitignore para Monitoreo de Loreto (Python + GEE + Cloud)
+
+# --- Python ---
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/  # Agregado: Evita subir los autoguardados de Jupyter Notebooks
+
+# --- Variables de entorno y credenciales locales ---
+.env
+.env.local
+.secret/             # Agregado: Por si creas carpetas de llaves locales
+
+# --- Configuración de IDEs y editores ---
+.vscode/
+.idea/
+*.swp
+
+# --- Google Earth Engine (GEE) y Google Cloud ---
+.earthengine/
+.gcloud/
+
+# --- Archivos de Data y Exportaciones ---
+salida_temporales/
+data/                # Agregado: Es mejor meter tus jsons y csvs aquí para que Git los ignore
+outputs/             # Agregado: Carpeta sugerida para tus descargas
+*.tif
+*.shp
+*.shx
+*.dbf
+*.geojson
+*.kml
+*.kmz
+*.pdf
+# Nota: Quité *.csv y *.json globales para que puedas versionar archivos de configuración si lo necesitas.
+
+# --- Logs locales ---
+*.log
+
+# --- Archivos de Sistema OS ---
+.DS_Store            # Agregado: Archivos basura de macOS
+Thumbs.db            # Agregado: Archivos basura de Windows
