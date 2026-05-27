@@ -26,7 +26,7 @@ class GEEConfigProduccion:
     end_date: str = '2023-12-31'
     patch_size: tuple = (128, 128)
     
-    # El objeto ROI ya no será un cuadrado manual, se inicializará dinámicamente
+    # El objeto ROI se inicializará dinámicamente
     roi: any = None
 
 
@@ -46,26 +46,26 @@ def init_gee(project_id: str) -> None:
 
 def get_loreto_political_boundary() -> ee.Geometry:
     """
-    Filtra la base de datos global de vectores del Banco de Datos de la FAO
-    para extraer estrictamente el contorno político de Loreto, Perú.
+    Filtra la base de datos global de la FAO (Nivel 1: Departamentos/Estados)
+    específicamente para Perú y Loreto, y extrae su Bounding Box.
     """
-    logger.info("Cargando límites políticos oficiales desde FAO/GAUL (Nivel 2)...")
+    logger.info("Consultando la base de datos de la FAO para Loreto, Perú...")
     
-    # Filtramos por el nombre del departamento oficial indexado por la FAO
-    loreto_vector = (ee.FeatureCollection("FAO/GAUL/2015/level2")
-                     .filter(ee.Filter.eq('clean_adm1_name', 'Loreto')))
+    # level1 = Departamentos/Regiones | ADM0_NAME = País | ADM1_NAME = Departamento
+    loreto_vector = (ee.FeatureCollection("FAO/GAUL/2015/level1")
+                     .filter(ee.Filter.eq('ADM0_NAME', 'Peru'))
+                     .filter(ee.Filter.eq('ADM1_NAME', 'Loreto')))
     
-    # Extraemos la geometría unificada del contorno
-    return loreto_vector.geometry()
+    # Extraemos la geometría y la convertimos en un rectángulo perfecto (Bounding Box)
+    return loreto_vector.geometry().bounds()
 
 def build_optical_composite(config: GEEConfigProduccion) -> ee.Image:
-    logger.info("Generando compuesto óptico Sentinel-2 en el contorno de Loreto...")
+    logger.info("Generando compuesto óptico Sentinel-2 en el Bounding Box de Loreto...")
     s2_col = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
               .filterBounds(config.roi)
               .filterDate(config.start_date, config.end_date)
               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))
     
-    # El recorte (.clip) ahora se hace con la silueta real de Loreto
     return s2_col.median().clip(config.roi)
 
 def apply_spectral_indices(image: ee.Image) -> ee.Image:
@@ -110,10 +110,10 @@ def export_pipeline_to_gcs(tensor_image: ee.Image, config: GEEConfigProduccion) 
         region=config.roi,
         scale=10, # Mantenemos resolución nativa de 10 metros por píxel
         fileFormat='TFRecord',
-        maxPixels=1e13, # Límite expandido para evitar desbordamiento por tamaño de Loreto
+        maxPixels=1e13, # Límite masivo para operaciones a escala regional
         formatOptions={
             'patchDimensions': list(config.patch_size),
-            'compressed': True # Compresión GZIP obligatoria para ahorrar almacenamiento
+            'compressed': True # Compresión GZIP obligatoria
         }
     )
     task.start()
@@ -131,7 +131,7 @@ def main():
     cfg = GEEConfigProduccion()
     init_gee(cfg.project_id)
     
-    # Capturamos dinámicamente el polígono oficial recortado por la frontera de Loreto
+    # Capturamos el polígono oficial (Bounding Box)
     cfg.roi = get_loreto_political_boundary()
     
     # Orquestación secuencial
