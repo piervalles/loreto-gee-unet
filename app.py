@@ -11,23 +11,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# Título de la plataforma
 st.title("🛰️ Sistema de Detección de Deforestación y Minería Ilegal")
 st.markdown("""
 Esta plataforma utiliza Inteligencia Artificial (Redes Neuronales U-Net) e imágenes 
-satelitales de radar y ópticas (Sentinel-1 y 2) para identificar la pérdida de bosque en la región de Loreto.
+satelitales de radar y ópticas para identificar la pérdida de bosque en la región de Loreto.
 """)
-
 st.divider()
 
 # =====================================================================
-# 2. PANEL LATERAL (Filtros y Controles)
+# 2. PANEL LATERAL E INTERACTIVIDAD
 # =====================================================================
 with st.sidebar:
     st.header("⚙️ Panel de Control")
     st.info("El sistema está analizando el departamento de Loreto, Perú.")
     
-    # Aquí en el futuro pondremos botones para cargar predicciones
     capa_mostrar = st.radio(
         "Seleccionar Capa de Visualización:",
         ("Mapa Base", "Indicios de Minería (IA)", "Deforestación Agrícola (IA)")
@@ -37,26 +34,41 @@ with st.sidebar:
     st.write("Desarrollado por Piero")
 
 # =====================================================================
-# 3. EL MAPA INTERACTIVO (Folium / Leaflet)
+# 3. LÓGICA ESPACIAL (El Mapa Interactivo)
 # =====================================================================
-# Coordenadas centrales de Loreto (Latitud, Longitud)
 LORETO_COORDS = [-4.0, -74.0]
 
-st.subheader("📍 Mapa Georreferenciado")
-
-# Creamos el mapa base con un estilo satelital/terreno
+# Inicializamos el mapa
 mapa = folium.Map(
     location=LORETO_COORDS, 
     zoom_start=6,
-    tiles="CartoDB positron" # Estilo de mapa limpio
+    tiles="CartoDB positron" 
 )
 
-# Un marcador de ejemplo (Más adelante serán los polígonos de tu IA)
-folium.Marker(
-    location=[-3.7491, -73.2538], # Iquitos
-    popup="Iquitos (Capital de Loreto)",
-    icon=folium.Icon(color="green", icon="info-sign")
-).add_to(mapa)
+# Patrón Mock: Simulamos las coordenadas que escupirá tu IA en el futuro
+COORDENADAS_MINERIA = [[-3.8, -73.5], [-3.8, -73.4], [-3.9, -73.4], [-3.9, -73.5]]
+COORDENADAS_TALA = [[-4.5, -74.5], [-4.5, -74.3], [-4.7, -74.3], [-4.7, -74.5]]
 
-# Renderizamos el mapa en la página web
+# Lógica de renderizado según el botón que presione el usuario
+if capa_mostrar == "Indicios de Minería (IA)":
+    folium.Polygon(
+        locations=COORDENADAS_MINERIA,
+        color="orange",
+        weight=2,
+        fill=True,
+        fill_opacity=0.5,
+        popup="⚠️ ALERTA IA: Posible Minería Ilegal (Cerca a cuerpo de agua)"
+    ).add_to(mapa)
+
+elif capa_mostrar == "Deforestación Agrícola (IA)":
+    folium.Polygon(
+        locations=COORDENADAS_TALA,
+        color="red",
+        weight=2,
+        fill=True,
+        fill_opacity=0.5,
+        popup="🪓 ALERTA IA: Deforestación por tala detectada"
+    ).add_to(mapa)
+
+# Renderizamos el mapa actualizado
 st_folium(mapa, width=1200, height=600)
