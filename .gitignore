@@ -43,3 +43,6 @@ outputs/             # Agregado: Carpeta sugerida para tus descargas
 # --- Archivos de Sistema OS ---
 .DS_Store            # Agregado: Archivos basura de macOS
 Thumbs.db            # Agregado: Archivos basura de Windows
+
+# --- Archivos modelo entrenado ---
+*.keras
