@@ -3,10 +3,12 @@
 /********************************************************************
 Terminal: vs code como orquestador
 ********************************************************************/
+#Backend
+pip install tensorflow
+pip install geopandas shapely
 
-
-
-
+#usado para el frontend
+pip install streamlit folium streamlit-folium
 
 
 /********************************************************************
