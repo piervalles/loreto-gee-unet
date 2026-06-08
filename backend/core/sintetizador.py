@@ -84,10 +84,11 @@ class SintetizadorEspacial:
 
         # ----------------------------------------------------------------
         # Carga y reproyección al CRS base (metros)
+        # HACK DE PROTOTIPO: limitamos a 50 geometrías para evitar asfixia de RAM
         # ----------------------------------------------------------------
-        rios   = gpd.read_file(_GPKG_RIOS).to_crs(_CRS_BASE)
-        vias   = gpd.read_file(_GPKG_VIAS).to_crs(_CRS_BASE)
-        urbano = gpd.read_file(_GPKG_URBANO).to_crs(_CRS_BASE)
+        rios   = gpd.read_file(_GPKG_RIOS).to_crs(_CRS_BASE).head(50)
+        vias   = gpd.read_file(_GPKG_VIAS).to_crs(_CRS_BASE).head(50)
+        urbano = gpd.read_file(_GPKG_URBANO).to_crs(_CRS_BASE).head(50)
 
         logger.info(
             "Capas cargadas → Ríos: %d geometrías | Vías: %d geometrías | "

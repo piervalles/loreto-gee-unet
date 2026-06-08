@@ -30,9 +30,9 @@ else:
 # 1. RUTAS DE INFRAESTRUCTURA (EN EL BUCKET)
 # =====================================================================
 BUCKET_NAME = "dataset-tfrecords-loreto"
-RUTA_DATOS = f"gs://{BUCKET_NAME}/datos_produccion/*.tfrecord.gz"
-RUTA_MODELO_FINAL = f"gs://{BUCKET_NAME}/modelos_guardados/unet_loreto_produccion.keras"
-RUTA_LOCAL_TEMP = "/tmp/unet_loreto_produccion.keras"
+RUTA_DATOS = f"gs://{BUCKET_NAME}/datos_entrenamiento_2/*.tfrecord.gz"
+RUTA_MODELO_FINAL = f"gs://{BUCKET_NAME}/modelos_guardados/unet_loreto_2.keras"
+RUTA_LOCAL_TEMP = "/tmp/unet_loreto_2.keras"
 
 # =====================================================================
 # 2. TUBERÍA DE DATOS MULTI-HILO (Anti-Cuellos de Botella)
