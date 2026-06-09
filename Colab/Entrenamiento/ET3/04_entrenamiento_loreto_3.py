@@ -95,18 +95,20 @@ dataset_validacion = (archivos_val
            .batch(BATCH_SIZE)
            .prefetch(AUTOTUNE))
 
-# Extraer muestra pura (sin aumentos) para adaptar la Normalización Z-Score eficientemente
+# =====================================================================
+# Extraer muestra pura (sin aumentos) para adaptar la Normalización
+# CORREGIDO: forzar float32 para evitar error de tipo con mixed_float16
+# =====================================================================
 print("\nCalculando estadísticas de normalización del dataset (Raw Data)...")
 
-# Creamos un mini-pipeline temporal y ligero solo para la normalización
 muestra_normalizacion = (archivos_train
     .interleave(lambda x: tf.data.TFRecordDataset(x, compression_type='GZIP'), num_parallel_calls=AUTOTUNE)
     .map(parsear_tfrecord, num_parallel_calls=AUTOTUNE)
     .batch(BATCH_SIZE)
     .take(50)
-    .map(lambda x, y: x))
+    .map(lambda x, y: tf.cast(x, tf.float32)))   # <--- CAST a float32
 
-capa_normalizacion = layers.Normalization(axis=-1)
+capa_normalizacion = layers.Normalization(axis=-1, dtype=tf.float32)   # <--- dtype forzado
 capa_normalizacion.adapt(muestra_normalizacion)
 print("✅ Normalización dinámica adaptada exitosamente (Modo TextBook).")
 
