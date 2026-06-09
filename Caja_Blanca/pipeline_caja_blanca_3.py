@@ -90,7 +90,7 @@ def load_and_rasterize_labels(config: GEEConfigProduccion, base_image: ee.Image)
     return base_image.addBands(etiqueta_exacta.float())
 
 def export_pipeline_to_gcs(tensor_image: ee.Image, config: GEEConfigProduccion) -> None:
-    ruta_destino = f'datos_entrenamiento_2/{config.output_name}'
+    ruta_destino = f'datos_entrenamiento_3/{config.output_name}'
     logger.info(f"Iniciando despacho masivo asíncrono hacia: gs://{config.gcs_bucket}/{ruta_destino}")
     
     task = ee.batch.Export.image.toCloudStorage(

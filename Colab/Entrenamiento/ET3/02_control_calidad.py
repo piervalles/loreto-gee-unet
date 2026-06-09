@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 print("Iniciando control de calidad visual...")
 
 BUCKET_NAME = "dataset-tfrecords-loreto"
-RUTA_DATOS_QA = f"gs://{BUCKET_NAME}/datos_entrenamiento_2/*.tfrecord.gz"
+RUTA_DATOS_QA = f"gs://{BUCKET_NAME}/datos_entrenamiento_3/*.tfrecord.gz"
 
 # 1. Función de parseo (idéntica a la de producción)
 def parsear_qa(example_proto):

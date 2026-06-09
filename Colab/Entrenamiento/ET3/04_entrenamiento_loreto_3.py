@@ -35,9 +35,9 @@ else:
 # 1. RUTAS DE INFRAESTRUCTURA (CLOUD STORAGE)
 # =====================================================================
 BUCKET_NAME = "dataset-tfrecords-loreto"
-RUTA_DATOS = f"gs://{BUCKET_NAME}/datos_entrenamiento_2/*.tfrecord.gz"
-RUTA_MODELO_FINAL = f"gs://{BUCKET_NAME}/modelos_guardados/unet_loreto_3_focal.keras"
-RUTA_LOCAL_TEMP = "/tmp/unet_loreto_3_focal.keras"
+RUTA_DATOS = f"gs://{BUCKET_NAME}/datos_entrenamiento_3/*.tfrecord.gz"
+RUTA_MODELO_FINAL = f"gs://{BUCKET_NAME}/modelos_guardados/unet_loreto_3.keras"
+RUTA_LOCAL_TEMP = "/tmp/unet_loreto_3.keras"
 
 # =====================================================================
 # 2. TUBERÍA DE DATOS CON AUMENTOS Y VALIDACIÓN
