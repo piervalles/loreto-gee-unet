@@ -46,3 +46,6 @@ Thumbs.db            # Agregado: Archivos basura de Windows
 
 # --- Archivos modelo entrenado ---
 *.keras
+
+# --- Archivos mapa .gpkg entrenado ---
+*.gpkg
