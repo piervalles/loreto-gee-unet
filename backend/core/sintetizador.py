@@ -6,7 +6,7 @@ de deforestación de Loreto.
 
 Responsabilidad única: dado un punto geográfico, determinar la causa
 probable de la deforestación consultando capas vectoriales OSM
-pre-procesadas como zonas de influencia (buffers).
+pre-procesadas (ETL Offline) como zonas de influencia (buffers).
 """
 
 import logging
@@ -23,26 +23,22 @@ from shapely.geometry import Point
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Rutas base resueltas de forma absoluta
+# Rutas base resueltas de forma absoluta (Apuntando a los ETL procesados)
 # ---------------------------------------------------------------------------
 _DIR_RAIZ = pathlib.Path(__file__).resolve().parents[2]   # …/Monitoreo_Loreto_IA/
 _DIR_MAPAS: pathlib.Path = _DIR_RAIZ / "backend" / "data" / "Mapas_Loreto"
 
-_GPKG_RIOS: pathlib.Path    = _DIR_MAPAS / "rios_osm.gpkg"
-_GPKG_VIAS: pathlib.Path    = _DIR_MAPAS / "vias_osm.gpkg"
-_GPKG_URBANO: pathlib.Path  = _DIR_MAPAS / "urbano_osm.gpkg"
+# Rutas de los archivos "gordos" generados por tu script de pre-procesamiento
+_GPKG_RIOS_BUFFER: pathlib.Path   = _DIR_MAPAS / "rios_buffer_500m.gpkg"
+_GPKG_VIAS_BUFFER: pathlib.Path   = _DIR_MAPAS / "vias_buffer_1000m.gpkg"
+_GPKG_URBANO_BUFFER: pathlib.Path = _DIR_MAPAS / "urbano_buffer_2000m.gpkg"
 
 # Sistema de Referencia de Coordenadas proyectado en metros (UTM zona 18S)
 _CRS_BASE = "EPSG:32718"
 
-# Distancias de influencia por capa [metros]
-_BUFFER_RIOS_M:   int = 500
-_BUFFER_VIAS_M:   int = 1_000
-_BUFFER_URBANO_M: int = 2_000
-
 # Etiquetas de causa de alerta (exportadas para uso en otros módulos)
-CAUSA_URBANA  = "Expansión Urbana"
-CAUSA_MINERA  = "Minería Aluvial (Alerta Alta)"
+CAUSA_URBANA   = "Expansión Urbana"
+CAUSA_MINERA   = "Minería Aluvial (Alerta Alta)"
 CAUSA_AGRICOLA = "Expansión Agrícola / Tala"
 CAUSA_AISLADA  = "Tala Aislada / Pista Clandestina"
 
@@ -51,67 +47,42 @@ class SintetizadorEspacial:
     """
     Motor de clasificación espacial de alertas de deforestación.
 
-    Carga capas vectoriales OSM en el CRS proyectado ``EPSG:32718`` y
-    pre-calcula zonas de influencia (buffers) para las tres categorías
-    de presión antrópica identificadas en Loreto:
+    Carga capas vectoriales OSM PRE-PROCESADAS en el CRS proyectado ``EPSG:32718``.
+    Las zonas de influencia (buffers y unary_union) ya fueron calculadas
+    offline en un proceso ETL, por lo que la carga es instantánea.
 
     - **Minería aluvial** → zona de influencia de ríos (500 m).
     - **Expansión agrícola / tala** → zona de influencia de vías (1 000 m).
     - **Expansión urbana** → zona de influencia de áreas urbanas (2 000 m).
 
-    El pre-cálculo en ``__init__`` garantiza que las consultas en
-    ``clasificar_alerta`` sean O(1) respecto al tiempo de carga de datos.
-
     Atributos
     ---------
-    zona_minera   : gpd.GeoDataFrame  Buffer de 500 m sobre ríos.
-    zona_agricola : gpd.GeoDataFrame  Buffer de 1 000 m sobre vías.
-    zona_urbana   : gpd.GeoDataFrame  Buffer de 2 000 m sobre urbano.
+    zona_minera   : gpd.GeoDataFrame  Buffer unificado de ríos.
+    zona_agricola : gpd.GeoDataFrame  Buffer unificado de vías.
+    zona_urbana   : gpd.GeoDataFrame  Buffer unificado de zonas urbanas.
     """
 
     def __init__(self) -> None:
         """
-        Carga las tres capas GeoPackage y pre-calcula los buffers.
+        Carga de forma instantánea las tres capas GeoPackage ya procesadas.
 
         Lanza
         -----
         FileNotFoundError
-            Si alguno de los archivos GeoPackage no existe.
+            Si alguno de los archivos GeoPackage pre-procesados no existe.
         """
         self._verificar_archivos()
 
-        logger.info("Cargando capas vectoriales OSM para Loreto…")
+        logger.info("Cargando capas vectoriales OSM PRE-PROCESADAS para Loreto…")
 
         # ----------------------------------------------------------------
-        # Carga y reproyección al CRS base (metros)
-        # HACK DE PROTOTIPO: limitamos a 50 geometrías para evitar asfixia de RAM
+        # Carga instantánea: Geometrías ya disueltas en el script ETL
         # ----------------------------------------------------------------
-        rios   = gpd.read_file(_GPKG_RIOS).to_crs(_CRS_BASE).head(50)
-        vias   = gpd.read_file(_GPKG_VIAS).to_crs(_CRS_BASE).head(50)
-        urbano = gpd.read_file(_GPKG_URBANO).to_crs(_CRS_BASE).head(50)
+        self.zona_minera:   gpd.GeoDataFrame = gpd.read_file(_GPKG_RIOS_BUFFER)
+        self.zona_agricola: gpd.GeoDataFrame = gpd.read_file(_GPKG_VIAS_BUFFER)
+        self.zona_urbana:   gpd.GeoDataFrame = gpd.read_file(_GPKG_URBANO_BUFFER)
 
-        logger.info(
-            "Capas cargadas → Ríos: %d geometrías | Vías: %d geometrías | "
-            "Urbano: %d geometrías",
-            len(rios), len(vias), len(urbano),
-        )
-
-        # ----------------------------------------------------------------
-        # Pre-cálculo de zonas de influencia (buffers)
-        # ----------------------------------------------------------------
-        logger.info("Pre-calculando zonas de influencia (buffers)…")
-
-        self.zona_minera:   gpd.GeoDataFrame = self._calcular_buffer(
-            rios, _BUFFER_RIOS_M, "zona_minera"
-        )
-        self.zona_agricola: gpd.GeoDataFrame = self._calcular_buffer(
-            vias, _BUFFER_VIAS_M, "zona_agricola"
-        )
-        self.zona_urbana:   gpd.GeoDataFrame = self._calcular_buffer(
-            urbano, _BUFFER_URBANO_M, "zona_urbana"
-        )
-
-        logger.info("Zonas de influencia listas. SintetizadorEspacial inicializado.")
+        logger.info("Zonas de influencia cargadas. SintetizadorEspacial inicializado ultrarrápido.")
 
     # ------------------------------------------------------------------
     # Métodos privados de soporte
@@ -119,48 +90,14 @@ class SintetizadorEspacial:
 
     @staticmethod
     def _verificar_archivos() -> None:
-        """Valida que los tres GeoPackages existan en disco."""
-        for ruta in (_GPKG_RIOS, _GPKG_VIAS, _GPKG_URBANO):
+        """Valida que los tres GeoPackages pre-procesados existan en disco."""
+        for ruta in (_GPKG_RIOS_BUFFER, _GPKG_VIAS_BUFFER, _GPKG_URBANO_BUFFER):
             if not ruta.exists():
                 raise FileNotFoundError(
-                    f"GeoPackage no encontrado: {ruta}\n"
-                    "Verifica que los archivos OSM estén en "
-                    "'backend/data/Mapas_Loreto/'."
+                    f"GeoPackage pre-procesado no encontrado: {ruta}\n"
+                    "Asegúrate de haber ejecutado el script ETL espacial "
+                    "para generar los archivos *_buffer_*.gpkg."
                 )
-
-    @staticmethod
-    def _calcular_buffer(
-        gdf: gpd.GeoDataFrame,
-        distancia_m: int,
-        nombre_zona: str,
-    ) -> gpd.GeoDataFrame:
-        """
-        Disuelve la capa de entrada y calcula un buffer en metros.
-
-        Usar ``unary_union`` + dissolve antes del buffer reduce drásticamente
-        el número de polígonos resultantes y acelera las consultas sjoin.
-
-        Parámetros
-        ----------
-        gdf          : GeoDataFrame de entrada (ya en CRS métrico).
-        distancia_m  : Radio del buffer en metros.
-        nombre_zona  : Nombre descriptivo para logging.
-
-        Retorna
-        -------
-        gpd.GeoDataFrame
-            GeoDataFrame con una sola geometría: el buffer disuelto.
-        """
-        geometria_unida = gdf.geometry.unary_union
-        buffer_geom     = geometria_unida.buffer(distancia_m)
-        resultado = gpd.GeoDataFrame(
-            geometry=[buffer_geom], crs=_CRS_BASE
-        )
-        logger.debug(
-            "Buffer '%s' calculado: %d m, tipo geométrico resultante: %s",
-            nombre_zona, distancia_m, buffer_geom.geom_type,
-        )
-        return resultado
 
     # ------------------------------------------------------------------
     # Interfaz pública
@@ -194,7 +131,7 @@ class SintetizadorEspacial:
         )
 
         # ----------------------------------------------------------------
-        # Consultas espaciales con gpd.sjoin
+        # Consultas espaciales ultrarrápidas con gpd.sjoin
         # ----------------------------------------------------------------
         en_urbano   = not gpd.sjoin(
             gdf_punto, self.zona_urbana,  how="inner", predicate="intersects"
