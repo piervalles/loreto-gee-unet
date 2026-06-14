@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # para que el módulo funcione independientemente del directorio de trabajo.
 # ---------------------------------------------------------------------------
 _DIR_RAIZ = pathlib.Path(__file__).resolve().parents[2]          # …/Monitoreo_Loreto_IA/
-_RUTA_MODELO: pathlib.Path = _DIR_RAIZ / "backend" / "data" / "Models" / "unet_loreto_1.keras"
+_RUTA_MODELO: pathlib.Path = _DIR_RAIZ / "backend" / "data" / "Models" / "unet_loreto_4.keras"
 
 
 class TraductorUNet:
@@ -52,7 +52,7 @@ class TraductorUNet:
         ----------
         ruta_modelo : pathlib.Path, opcional
             Ruta al archivo `.keras`. Si se omite, se usa la ruta canónica
-            del proyecto (``backend/data/Models/unet_loreto_1.keras``).
+            del proyecto (``backend/data/Models/unet_loreto_4.keras``).
 
         Lanza
         -----
@@ -64,7 +64,7 @@ class TraductorUNet:
         if not ruta_efectiva.exists():
             raise FileNotFoundError(
                 f"No se encontró el modelo en: {ruta_efectiva}\n"
-                "Verifica que el archivo 'unet_loreto_1.keras' esté en "
+                "Verifica que el archivo 'unet_loreto_4.keras' esté en "
                 "'backend/data/Models/'."
             )
 
