@@ -98,30 +98,37 @@ class SintetizadorEspacial:
         gdf_puntos = gpd.GeoDataFrame(geometry=puntos, crs=_CRS_BASE)
         return self._clasificar_gdf(gdf_puntos)
 
+    # =========================================================================
+    # CORREGIDO: Método interno seguro con índices de Pandas
+    # =========================================================================
     def _clasificar_gdf(self, gdf: gpd.GeoDataFrame) -> List[str]:
         """
         Lógica interna de clasificación (aplica jerarquía).
         """
-        # Inicializar todas las causas como No Urbano
-        causas = [CAUSA_NO_URBANO] * len(gdf)
+        # Trabajamos sobre una copia para no alterar el DataFrame original
+        df_trabajo = gdf.copy()
+        df_trabajo["causa"] = CAUSA_NO_URBANO
 
         # Iterar sobre las causas en orden de prioridad (urbano primero)
         for causa, buffer_gdf in self._buffers.items():
             if buffer_gdf.empty:
                 continue  # buffer vacío, saltar
-            # Encontrar índices de puntos que intersectan el buffer actual
-            # Nota: solo clasificamos los que aún no tienen causa (siguen No Urbano)
-            idx_no_clasificados = [i for i, c in enumerate(causas) if c == CAUSA_NO_URBANO]
-            if not idx_no_clasificados:
-                break  # todos ya clasificados
-            gdf_restantes = gdf.iloc[idx_no_clasificados]
+
+            # Encontrar cuáles siguen siendo "No Urbano"
+            mask_no_clasificados = df_trabajo["causa"] == CAUSA_NO_URBANO
+            if not mask_no_clasificados.any():
+                break  # todos clasificados
+
+            gdf_restantes = df_trabajo[mask_no_clasificados]
+
             # sjoin con how='inner' devuelve solo los que intersectan
             joined = gpd.sjoin(gdf_restantes, buffer_gdf, how='inner', predicate='intersects')
-            if not joined.empty:
-                for i in joined.index:
-                    causas[idx_no_clasificados[i]] = causa
 
-        return causas
+            if not joined.empty:
+                # Asignación segura por índice nativo de Pandas
+                df_trabajo.loc[joined.index, "causa"] = causa
+
+        return df_trabajo["causa"].tolist()
 
     # =========================================================================
     # MÉTODO ESTÁTICO DE UTILIDAD: conversión de píxeles a coordenadas
