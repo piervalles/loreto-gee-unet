@@ -19,8 +19,15 @@ import numpy as np
 import tensorflow as tf
 import folium
 import streamlit as st
+from backend.core.sintetizador import SintetizadorEspacial
 from streamlit_folium import st_folium
 from shapely.geometry import Point
+
+@st.cache_resource
+def obtener_sintetizador():
+    return SintetizadorEspacial()
+
+sintetizador = obtener_sintetizador()
 
 # ---------------------------------------------------------------------------
 # Ajuste de sys.path para que las importaciones absolutas del backend
