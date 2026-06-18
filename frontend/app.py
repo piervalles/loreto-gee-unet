@@ -15,30 +15,26 @@ import sys
 import pathlib
 import logging
 
-import numpy as np
-import tensorflow as tf
-import folium
-import streamlit as st
-from backend.core.sintetizador import SintetizadorEspacial
-from streamlit_folium import st_folium
-from shapely.geometry import Point
-
-@st.cache_resource
-def obtener_sintetizador():
-    return SintetizadorEspacial()
-
-sintetizador = obtener_sintetizador()
-
 # ---------------------------------------------------------------------------
-# Ajuste de sys.path para que las importaciones absolutas del backend
-# funcionen correctamente cuando se ejecuta desde la raíz del proyecto.
+# Ajuste de sys.path — DEBE ejecutarse antes de cualquier import del backend.
+# Resuelve el raíz del proyecto independientemente del directorio de trabajo
+# actual, por lo que funciona tanto con `streamlit run frontend/app.py` como
+# ejecutando el script directamente desde cualquier ubicación.
 # ---------------------------------------------------------------------------
 _DIR_RAIZ = pathlib.Path(__file__).resolve().parent.parent
 if str(_DIR_RAIZ) not in sys.path:
     sys.path.insert(0, str(_DIR_RAIZ))
 
-from backend.core.inferencia import TraductorUNet          # noqa: E402
-from backend.core.sintetizador import SintetizadorEspacial  # noqa: E402
+import numpy as np
+import tensorflow as tf
+import folium
+import streamlit as st
+from streamlit_folium import st_folium
+from shapely.geometry import Point
+from backend.core.inferencia import TraductorUNet
+from backend.core.sintetizador import SintetizadorEspacial
+
+
 
 # ---------------------------------------------------------------------------
 # Configuración de logging (Streamlit captura stdout; usamos el logger)
