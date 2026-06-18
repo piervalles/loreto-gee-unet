@@ -23,7 +23,7 @@ _RUTA_BASE = os.getenv(
     pathlib.Path(__file__).resolve().parents[2] / "backend" / "data" / "Mapas_Loreto"
 )
 
-_GPKG_URBANO = _RUTA_BASE / "urbano_buffer_2000m.gpkg"
+_GPKG_URBANO = _RUTA_BASE / "ETL" / "01" / "ETL_01_urbano_buffer_2000m.gpkg"
 # _GPKG_RIOS  = _RUTA_BASE / "rios_buffer_500m.gpkg"    # Reservado para futura extensión
 # _GPKG_VIAS  = _RUTA_BASE / "vias_buffer_1000m.gpkg"   # Reservado para futura extensión
 
