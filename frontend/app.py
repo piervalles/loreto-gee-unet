@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 # Cambia a "local" para desarrollo sin credenciales GCS.
 # ---------------------------------------------------------------------------
 FUENTE_DATOS: str = "gcs"
-GCS_BUCKET: str = "dataset-tfrecords-loreto"
-GCS_RUTA_GEOJSON: str = "resultados/alertas_loreto.geojson"
+GCS_BUCKET: str = "resultado_inferencia"
+GCS_RUTA_GEOJSON: str = "2023/resultado_inferencia_1.geojson"
 
 # Fallback local (solo para desarrollo / pruebas)
 RUTA_GEOJSON_LOCAL: pathlib.Path = (
@@ -417,37 +417,48 @@ def _leer_alertas_geojson(
         geom  = feat.get("geometry", {})
         tipo  = geom.get("type", "")
 
-        # Extraer anillo exterior del polígono
-        if tipo == "Polygon":
+        # Extraer geometría — soporta Polygon, MultiPolygon y Point
+        if tipo == "Point":
+            # GeoJSON: coordenadas ya en WGS84 [lon, lat]
+            lon, lat = geom["coordinates"][0], geom["coordinates"][1]
+            coords_wgs84 = [[lat, lon]]
+            centroide    = (lat, lon)
+            is_point     = True
+        elif tipo == "Polygon":
             anillo_utm = geom["coordinates"][0]
+            try:
+                coords_wgs84 = _utm_a_wgs84(anillo_utm)
+            except Exception as exc:
+                logger.error("Error convirtiendo coordenadas de %s: %s", props.get("id_unico", "?"), exc)
+                continue
+            centroide = _centroide_wgs84(coords_wgs84)
+            is_point  = False
         elif tipo == "MultiPolygon":
             anillo_utm = geom["coordinates"][0][0]
+            try:
+                coords_wgs84 = _utm_a_wgs84(anillo_utm)
+            except Exception as exc:
+                logger.error("Error convirtiendo coordenadas de %s: %s", props.get("id_unico", "?"), exc)
+                continue
+            centroide = _centroide_wgs84(coords_wgs84)
+            is_point  = False
         else:
-            logger.warning("Geometría ignorada (no es Polygon): %s", tipo)
+            logger.warning("Geometría ignorada (tipo no soportado): %s", tipo)
             continue
 
-        try:
-            coords_wgs84 = _utm_a_wgs84(anillo_utm)
-        except Exception as exc:
-            logger.error(
-                "Error convirtiendo coordenadas de %s: %s",
-                props.get("id_unico", "?"), exc,
-            )
-            continue
-
-        causa_interna = props.get("causa_sugerida", "Otros")
+        causa_interna = props.get("causa_sugerida", props.get("causa", "Otros"))
         etiqueta      = _causa_a_etiqueta(causa_interna)
-        centroide     = _centroide_wgs84(coords_wgs84)
 
         alertas.append({
-            "id_unico":       props.get("id_unico", f"alerta_{len(alertas)+1:03d}"),
-            "causa_sugerida": causa_interna,
+            "id_unico":        props.get("id_unico", f"alerta_{len(alertas)+1:03d}"),
+            "causa_sugerida":  causa_interna,
             "etiqueta_visual": etiqueta,
-            "pixeles":        props.get("pixeles", 0),
-            "porcentaje":     props.get("porcentaje", 0.0),
-            "area_ha":        props.get("area_ha", 0.0),
-            "coords_wgs84":   coords_wgs84,
-            "centroide":      centroide,
+            "pixeles":         props.get("pixeles", 0),
+            "porcentaje":      props.get("porcentaje", 0.0),
+            "area_ha":         props.get("area_ha", 0.0),
+            "coords_wgs84":    coords_wgs84,
+            "centroide":       centroide,
+            "is_point":        is_point,
         })
 
     logger.info("Alertas cargadas: %d (fuente: %s)", len(alertas), fuente)
@@ -638,13 +649,30 @@ def _construir_mapa_con_alertas(
             f"{etiqueta_eff} — {alerta['area_ha']:.2f} ha"
         )
 
-        poligono = folium.Polygon(
-            locations=alerta["coords_wgs84"],
-            popup=popup,
-            tooltip=tooltip_txt,
-            fill=True,
-            **estilo,
-        )
+        # Renderizar como CircleMarker (Point) o Polygon según geometría
+        grupo_destino = "falso_positivo" if estado == "falso_positivo" else etiqueta_eff
+        if alerta.get("is_point", False):
+            # Radio proporcional al área (mínimo 5, máximo 20)
+            radio = max(5, min(20, int(alerta["area_ha"] * 4 + 5)))
+            folium.CircleMarker(
+                location=alerta["centroide"],
+                radius=radio,
+                popup=popup,
+                tooltip=tooltip_txt,
+                fill=True,
+                fill_color=estilo["fill_color"],
+                fill_opacity=estilo["fill_opacity"],
+                color=estilo["color"],
+                weight=estilo["weight"],
+            ).add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
+        else:
+            folium.Polygon(
+                locations=alerta["coords_wgs84"],
+                popup=popup,
+                tooltip=tooltip_txt,
+                fill=True,
+                **estilo,
+            ).add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
 
         # Icono de check para validados
         if estado == "validado":
@@ -656,16 +684,7 @@ def _construir_mapa_con_alertas(
                     icon_anchor=(12, 12),
                 ),
                 tooltip=f"✅ Validado: {etiqueta_eff}",
-            ).add_to(
-                grupos.get(
-                    "falso_positivo" if estado == "falso_positivo" else etiqueta_eff,
-                    grupos["falso_positivo"],
-                )
-            )
-
-        # Añadir polígono al grupo correcto
-        grupo_destino = "falso_positivo" if estado == "falso_positivo" else etiqueta_eff
-        poligono.add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
+            ).add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
 
         # Acumular para bounding box
         for coord in alerta["coords_wgs84"]:
