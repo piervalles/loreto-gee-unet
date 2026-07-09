@@ -37,18 +37,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# CONFIGURACIÓN DE FUENTE DE DATOS
-# Cambia a "local" para leer desde tu disco, o a "gcs" para leer de la nube.
+# Fuente de datos — GCS (cloud-first)
+# Cambia a "local" para desarrollo sin credenciales GCS.
 # ---------------------------------------------------------------------------
-FUENTE_DATOS: str = "local"  # <-- Cambia entre "local" y "gcs"
 
-# 1. Configuración de Nube (GCS)
+# ------------------------
+# NUBE
+# ---------------------------
+FUENTE_DATOS: str = "gcs"
 GCS_BUCKET: str = "resultado_inferencia"
 GCS_RUTA_GEOJSON: str = "2023/resultado_inferencia_1.geojson"
 
-# 2. Configuración Local
+
 RUTA_GEOJSON_LOCAL: pathlib.Path = (
-    _DIR_RAIZ / "backend" / "data" / "Inferencia" / "2023" / "resultado_inferencia_1.geojson"
+    _DIR_RAIZ / "backend" / "data" / "alertas_ejemplo.geojson"
 )
 RESOLUCION_M: int = 10  # metros por píxel (Sentinel-2, banda 10m)
 
