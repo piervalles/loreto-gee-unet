@@ -1,16 +1,19 @@
-# Lista de librerías necesarias (tensorflow, fastapi, etc.)
+# ============================================================
+# Dependencias del proyecto — Monitor Loreto IA
+# ============================================================
 
-/********************************************************************
-Terminal: vs code como orquestador
-********************************************************************/
-#Backend
-pip install tensorflow
-pip install geopandas shapely
+# --- Frontend ---
+streamlit
+folium
+streamlit-folium
+pyproj
 
-#usado para el frontend
-pip install streamlit folium streamlit-folium
+# --- Geoespacial (sintetizador local / scripts ETL) ---
+geopandas
+shapely
 
+# NOTA: La lectura de GCS se hace via gsutil (gcloud SDK ya instalado),
+#       por lo que NO se necesita google-cloud-storage como dependencia.
 
-/********************************************************************
-IAAP
-********************************************************************/
+# --- ML (solo si se usa inferencia local; en producción corre en Colab) ---
+# tensorflow
