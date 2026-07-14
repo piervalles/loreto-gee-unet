@@ -26,7 +26,9 @@ if str(_DIR_RAIZ) not in sys.path:
     sys.path.insert(0, str(_DIR_RAIZ))
 
 import folium
+from folium.plugins import MarkerCluster
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_folium import st_folium
 from pyproj import Transformer
 
@@ -612,16 +614,25 @@ def _construir_mapa_con_alertas(
         return mapa
 
     # FeatureGroups — uno por cada etiqueta visual + uno para falsos positivos
+    # Cada grupo tiene su propio MarkerCluster para rendimiento con miles de puntos
     grupos: dict[str, folium.FeatureGroup] = {}
+    clusters: dict[str, MarkerCluster] = {}
     for etiqueta, pal in PALETA_ETIQUETA.items():
-        grupos[etiqueta] = folium.FeatureGroup(
+        fg = folium.FeatureGroup(
             name=f"{pal['emoji']} {etiqueta}",
             show=filtros_activos.get(etiqueta, True),
         )
+        grupos[etiqueta]  = fg
+        clusters[etiqueta] = MarkerCluster(
+            options={"maxClusterRadius": 40, "disableClusteringAtZoom": 14}
+        ).add_to(fg)
     grupos["falso_positivo"] = folium.FeatureGroup(
         name="🚫 Falsos Positivos",
         show=True,
     )
+    clusters["falso_positivo"] = MarkerCluster(
+        options={"maxClusterRadius": 40, "disableClusteringAtZoom": 14}
+    ).add_to(grupos["falso_positivo"])
 
     # Bounding box para ajustar zoom automáticamente
     todas_lats, todas_lons = [], []
@@ -653,9 +664,10 @@ def _construir_mapa_con_alertas(
 
         # Renderizar como CircleMarker (Point) o Polygon según geometría
         grupo_destino = "falso_positivo" if estado == "falso_positivo" else etiqueta_eff
+        destino_cluster = clusters.get(grupo_destino, clusters["falso_positivo"])
         if alerta.get("is_point", False):
-            # Radio proporcional al área (mínimo 5, máximo 20)
-            radio = max(5, min(20, int(alerta["area_ha"] * 4 + 5)))
+            # Radio proporcional al área (mínimo 5, máximo 18)
+            radio = max(5, min(18, int(alerta["area_ha"] * 4 + 5)))
             folium.CircleMarker(
                 location=alerta["centroide"],
                 radius=radio,
@@ -666,7 +678,7 @@ def _construir_mapa_con_alertas(
                 fill_opacity=estilo["fill_opacity"],
                 color=estilo["color"],
                 weight=estilo["weight"],
-            ).add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
+            ).add_to(destino_cluster)
         else:
             folium.Polygon(
                 locations=alerta["coords_wgs84"],
@@ -674,7 +686,7 @@ def _construir_mapa_con_alertas(
                 tooltip=tooltip_txt,
                 fill=True,
                 **estilo,
-            ).add_to(grupos.get(grupo_destino, grupos["falso_positivo"]))
+            ).add_to(destino_cluster)
 
         # Icono de check para validados
         if estado == "validado":
@@ -1101,15 +1113,25 @@ if not alertas:
         unsafe_allow_html=True,
     )
 else:
-    mapa = _construir_mapa_con_alertas(
-        alertas,
-        st.session_state["validaciones"],
-        filtros_activos,
-    )
-    st_folium(
-        mapa,
-        width="100%",
-        height=560,
-        returned_objects=[],
-        key="mapa_loreto_poligonos",
+    # ---------- caché del mapa en session_state ----------
+    # El mapa se reconstruye SOLO cuando cambian los datos, validaciones o filtros.
+    # Así Streamlit no reprocesa 2636 marcadores en cada interacción de UI.
+    _clave_mapa = hash((
+        json.dumps([a["id_unico"] for a in alertas]),      # datos
+        json.dumps(st.session_state["validaciones"]),       # validaciones
+        json.dumps(filtros_activos, sort_keys=True),        # filtros
+    ))
+    if st.session_state.get("_mapa_cache_key") != _clave_mapa:
+        _mapa_obj = _construir_mapa_con_alertas(
+            alertas,
+            st.session_state["validaciones"],
+            filtros_activos,
+        )
+        st.session_state["_mapa_html"]      = _mapa_obj._repr_html_()
+        st.session_state["_mapa_cache_key"] = _clave_mapa
+
+    components.html(
+        st.session_state["_mapa_html"],
+        height=580,
+        scrolling=False,
     )

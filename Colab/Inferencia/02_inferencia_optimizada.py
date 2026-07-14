@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # PIPELINE DE INFERENCIA OPTIMIZADO — Monitor Loreto IA
 # Archivo : Colab/Inferencia/02_inferencia_optimizada.py
 # Basado  : 01_inferencia_produccion.py (conservado intacto)
@@ -78,7 +78,7 @@ GCP_PROJECT        = "proyecto-ia-496311"
 BUCKET_DATOS       = "dataset-tfrecords-loreto"
 BUCKET_MAPAS       = "mapas_loreto"
 
-PREFIJO_TFRECORDS  = f"gs://{BUCKET_DATOS}/datos_entrenamiento_2/tensor_loreto_2_"
+PREFIJO_TFRECORDS  = f"gs://{BUCKET_DATOS}/datos_inferencia_2026/tensor_loreto_1_2026_"
 RUTA_MIXER         = f"{PREFIJO_TFRECORDS}mixer.json"
 
 RUTA_MODELO_GCS    = f"gs://{BUCKET_DATOS}/modelos_guardados/unet_loreto_4.keras"
@@ -92,9 +92,9 @@ BUFFERS_JERARQUIA  = [
     ("Vial",    "vias_buffer_1000m.gpkg"),
 ]
 
-FECHA_DATASET      = "2023"
-RUTA_SALIDA_GCS    = "gs://resultado_inferencia/2023/resultado_inferencia_1.geojson"
-RUTA_SALIDA_LOCAL  = f"/tmp/resultado_inferencia_1.geojson"
+FECHA_DATASET      = "2026"
+RUTA_SALIDA_GCS    = "gs://resultado_inferencia/2026/alertas_loreto_2026.geojson"
+RUTA_SALIDA_LOCAL  = f"/tmp/alertas_loreto_2026.geojson"
 
 # [O1][O2] Tamaño de lote para GPU — ajusta según VRAM disponible:
 #   A100 (40 GB) → batch=64 usa ~1 GB VRAM   → muy seguro
@@ -102,8 +102,8 @@ RUTA_SALIDA_LOCAL  = f"/tmp/resultado_inferencia_1.geojson"
 #   T4   (16 GB) → usar batch=16 para margen
 BATCH_SIZE         = 256
 
-UMBRAL_DEFORES     = 0.5
-PIXELES_MINIMOS    = 5
+UMBRAL_DEFORES     = 0.15
+PIXELES_MINIMOS    = 1
 RESOLUCION_M       = 10.0
 CRS_UTM            = "EPSG:32718"
 
@@ -170,10 +170,34 @@ print("\n✅ Recursos descargados.")
 # ---------------------------------------------------------------------------
 # 3.1 Coordenadas UTM → WGS84
 # ---------------------------------------------------------------------------
-_PROYECTOR_UTM = Transformer.from_crs(CRS_UTM, "EPSG:4326", always_xy=True)
+# [FIX] Transformer.from_crs("EPSG:32718") tiene problemas de axis-order en
+# algunas versiones de pyproj que se instalan en Colab. Usamos Proj con parametros
+# explicitos (zona, hemisferio sur) para garantizar la conversion correcta.
+from pyproj import Proj
+_PROJ_UTM18S   = Proj(proj="utm", zone=18, south=True, datum="WGS84", units="m")
+_PROJ_WGS84    = Proj("epsg:4326")
+_PROYECTOR_UTM = Transformer.from_proj(_PROJ_UTM18S, _PROJ_WGS84, always_xy=True)
+
+# Bounding box amplio de Loreto — descarta alertas con coordenadas absurdas
+LORETO_BBOX = {"lon_min": -76.0, "lon_max": -69.0, "lat_min": -7.0, "lat_max": -1.0}
 
 def utm_a_wgs84(x_utm: float, y_utm: float) -> tuple:
-    return _PROYECTOR_UTM.transform(x_utm, y_utm)
+    """Convierte UTM Zona 18S (easting, northing) -> (lon, lat) WGS84."""
+    lon, lat = _PROYECTOR_UTM.transform(x_utm, y_utm)
+    return lon, lat
+
+def coordenadas_en_loreto(lon: float, lat: float) -> bool:
+    """True si el punto esta dentro del bbox de Loreto."""
+    return (LORETO_BBOX["lon_min"] <= lon <= LORETO_BBOX["lon_max"] and
+            LORETO_BBOX["lat_min"] <= lat <= LORETO_BBOX["lat_max"])
+
+# Auto-test: si Iquitos no proyecta bien, el script falla ANTES de inferir
+_lon_iq, _lat_iq = utm_a_wgs84(679_000, 9_585_000)
+assert coordenadas_en_loreto(_lon_iq, _lat_iq), (
+    f"ERROR CONVERSION UTM->WGS84: ({_lon_iq:.4f}, {_lat_iq:.4f}) fuera de Loreto. "
+    "Asegurate de que pyproj >= 3.0 este instalado."
+)
+logger.info(f"Conversion verificada: Iquitos -> lon={_lon_iq:.4f}, lat={_lat_iq:.4f}")
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +382,10 @@ def extraer_centroides_de_mascara(
         filas, cols = np.where(region)
         x_utm = origen_x + float(cols.mean()) * RESOLUCION_M
         y_utm = origen_y - float(filas.mean()) * RESOLUCION_M
+
+        lon_test, lat_test = utm_a_wgs84(x_utm, y_utm)
+        # if not coordenadas_en_loreto(lon_test, lat_test):
+        #     continue  # descarta centroides fuera de Loreto (error de proyeccion)
 
         centroides.append({
             "punto_utm": Point(x_utm, y_utm),
@@ -586,3 +614,5 @@ print(sep)
 print()
 print("  ✅  Listo. Abre Streamlit → '🔄 Refrescar predicciones'.")
 print(sep)
+
+
